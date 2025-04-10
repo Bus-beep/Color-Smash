@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Color Smash</title>
+    <style>
+        :root {
+            --primary: #6200ee;
+            --primary-dark: #3700b3;
+            --secondary: #03dac6;
+            --background: #121212;
+            --surface: #1e1e1e;
+            --error: #cf6679;
+            --on-primary: #ffffff;
+            --on-secondary: #000000;
+            --on-background: #ffffff;
+            --on-surface: #ffffff;
+            --on-error: #000000;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background);
+            color: var(--on-background);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        header {
+            padding: 1rem;
+            background-color: var(--surface);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            color: var(--secondary);
+            text-shadow: 0 0 5px rgba(3, 218, 198, 0.5);
+        }
+        
+        .controls {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        button {
+            padding: 0.5rem 1rem;
+            background-color: var(--primary);
+            color: var(--on-primary);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        
+        button:hover {
+            background-color: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        #game-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background-color: var(--surface);
+        }
+        
+        .block {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease-out;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: rgba(0,0,0,0.7);
+            font-size: 1.2rem;
+            transform: scale(0);
+            animation: blockAppear 0.5s forwards;
+        }
+        
+        @keyframes blockAppear {
+            to {
+                transform: scale(1);
+            }
+        }
+        
+        .block:hover {
+            transform: scale(1.1) !important;
+        }
+        
+        .block.destroyed {
+            transform: scale(1.8);
+            opacity: 0;
+        }
+        
+        .stats-container {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background-color: rgba(30, 30, 30, 0.7);
+            padding: 1rem;
+            border-radius: 8px;
+            z-index: 5;
+            backdrop-filter: blur(5px);
+        }
+        
+        .stat {
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+        
+        .stat-label {
+            color: var(--secondary);
+        }
+        
+        .stat-value {
+            font-weight: bold;
+        }
+        
+        #high-score .stat-value {
+            color: #ffd700;
+        }
+        
+        .score-effect {
+            position: absolute;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--secondary);
+            animation: floatUp 1s forwards;
+            pointer-events: none;
+            text-shadow: 0 0 5px rgba(0,0,0,0.5);
+            z-index: 2;
+        }
+        
+        @keyframes floatUp {
+            0% {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(-100px) scale(1.5);
+                opacity: 0;
+            }
+        }
+        
+        /* Fullscreen styles */
+        :fullscreen #game-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        :fullscreen header {
+            display: none;
+        }
+        
+        :fullscreen .stats-container {
+            top: 2rem;
+            left: 2rem;
+            padding: 1.5rem;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Color Smash</h1>
+        <div class="controls">
+            <button id="fullscreen-btn">Fullscreen</button>
+            <button id="sound-btn">Sound: ON</button>
+        </div>
+    </header>
+    
+    <div id="game-container">
+        <div class="stats-container">
+            <div class="stat">
+                <span class="stat-label">Score:</span>
+                <span class="stat-value" id="score">0</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">Speed:</span>
+                <span class="stat-value" id="speed-bonus">0x</span>
+            </div>
+            <div class="stat" id="high-score">
+                <span class="stat-label">High Score:</span>
+                <span class="stat-value" id="high-score-value">0</span>
+            </div>
+        </div>
+    </div>
+    
+    <audio id="blockSound" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-game-jump-coin-216.mp3" preload="auto"></audio>
+    
+    <script>
+        const colors = [
+            '#FF5733', '#33FF57', '#3357FF', '#F3FF33', 
+            '#FF33F3', '#33FFF3', '#FF8C33', '#8C33FF',
+            '#33FF8C', '#FF338C', '#6A33FF', '#33FFC1'
+        ];
+        
+        const gameContainer = document.getElementById('game-container');
+        const scoreDisplay = document.getElementById('score');
+        const speedBonusDisplay = document.getElementById('speed-bonus');
+        const highScoreDisplay = document.getElementById('high-score-value');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const soundBtn = document.getElementById('sound-btn');
+        const blockSound = document.getElementById('blockSound');
+        
+        let score = 0;
+        let highScore = localStorage.getItem('colorSmashHighScore') || 0;
+        let lastClickTime = 0;
+        let speedBonus = 0;
+        let blockCount = 0;
+        let gameActive = true;
+        let soundOn = true;
+        
+        // Initialize high score display
+        highScoreDisplay.textContent = highScore;
+        
+        // Fullscreen toggle
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
+        
+        // Sound toggle
+        soundBtn.addEventListener('click', () => {
+            soundOn = !soundOn;
+            soundBtn.textContent = `Sound: ${soundOn ? 'ON' : 'OFF'}`;
+        });
+        
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+                fullscreenBtn.textContent = 'Exit Fullscreen';
+            } else {
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                    fullscreenBtn.textContent = 'Fullscreen';
+                }
+            }
+        }
+        
+        function getRandomPosition() {
+            const containerWidth = gameContainer.clientWidth;
+            const containerHeight = gameContainer.clientHeight;
+            
+            const x = Math.random() * (containerWidth - 60);
+            const y = Math.random() * (containerHeight - 60);
+            
+            return { x, y };
+        }
+        
+        function showScoreEffect(points, x, y) {
+            const effect = document.createElement('div');
+            effect.className = 'score-effect';
+            effect.textContent = '+' + points;
+            effect.style.left = x + 'px';
+            effect.style.top = y + 'px';
+            gameContainer.appendChild(effect);
+            
+            setTimeout(() => {
+                effect.remove();
+            }, 1000);
+        }
+        
+        function createBlock() {
+            if (!gameActive) return;
+            
+            const block = document.createElement('div');
+            block.className = 'block';
+            const colorIndex = Math.floor(Math.random() * colors.length);
+            block.style.backgroundColor = colors[colorIndex];
+            
+            const position = getRandomPosition();
+            block.style.left = position.x + 'px';
+            block.style.top = position.y + 'px';
+            
+            // Add a number to the block
+            const blockValue = Math.floor(Math.random() * 9) + 1;
+            block.textContent = blockValue;
+            
+            block.addEventListener('click', function() {
+                if (!block.classList.contains('destroyed')) {
+                    // Calculate speed bonus based on time between clicks
+                    const now = Date.now();
+                    const timeDiff = now - lastClickTime;
+                    lastClickTime = now;
+                    
+                    if (timeDiff < 1000) {
+                        speedBonus = Math.min(10, Math.floor(1000 / timeDiff));
+                    } else {
+                        speedBonus = 0;
+                    }
+                    
+                    // Calculate points (base + speed bonus)
+                    let points = 10 * blockValue;
+                    if (speedBonus > 0) {
+                        if (speedBonus <= 3) points = Math.floor(points * 1.5); // A bit fast
+                        else if (speedBonus <= 6) points *= 2; // Fast
+                        else points *= 3; // Very fast
+                    }
+                    
+                    points = Math.floor(points);
+                    
+                    block.classList.add('destroyed');
+                    score += points;
+                    scoreDisplay.textContent = score;
+                    speedBonusDisplay.textContent = speedBonus + 'x';
+                    
+                    // Play sound
+                    if (soundOn) {
+                        blockSound.currentTime = 0;
+                        blockSound.play();
+                    }
+                    
+                    // Show visual effect
+                    showScoreEffect(points, position.x + 30, position.y + 30);
+                    
+                    // Update high score if needed
+                    if (score > highScore) {
+                        highScore = score;
+                        highScoreDisplay.textContent = highScore;
+                        localStorage.setItem('colorSmashHighScore', highScore);
+                    }
+                    
+                    setTimeout(() => {
+                        block.remove();
+                        blockCount--;
+                    }, 300);
+                }
+            });
+            
+            gameContainer.appendChild(block);
+            blockCount++;
+            
+            // Slower spawn time between 1-3 seconds
+            const nextSpawnTime = Math.random() * 2000 + 1000;
+            setTimeout(createBlock, nextSpawnTime);
+            
+            // Auto-remove block after 5 seconds if not clicked
+            setTimeout(() => {
+                if (!block.classList.contains('destroyed')) {
+                    block.classList.add('destroyed');
+                    setTimeout(() => {
+                        block.remove();
+                        blockCount--;
+                    }, 300);
+                }
+            }, 5000);
+        }
+        
+        // Start spawning blocks
+        createBlock();
+        
+        // Pause game when window loses focus
+        window.addEventListener('blur', () => {
+            gameActive = false;
+        });
+        
+        window.addEventListener('focus', () => {
+            gameActive = true;
+            createBlock();
+        });
+        
+        // Handle fullscreen change
+        document.addEventListener('fullscreenchange', () => {
+            fullscreenBtn.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen';
+        });
+    </script>
+</body>
+</html>
